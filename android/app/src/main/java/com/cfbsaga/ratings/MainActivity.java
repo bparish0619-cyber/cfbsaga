@@ -7,12 +7,14 @@ import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.DisplayCutout;
 import android.view.View;
 import android.view.WindowInsets;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import android.window.OnBackInvokedDispatcher;
 
 /** Full-screen WebView that shows the bundled ratings board (assets/index.html). */
@@ -52,8 +54,14 @@ public class MainActivity extends Activity {
             }
         });
 
-        drawEdgeToEdge(webView);
-        setContentView(webView);
+        // WebView draws its page underneath its own padding, so the safe-area padding goes on a
+        // container instead; that keeps the header clear of the status bar and camera cutout.
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(getColor(R.color.page_bg));
+        root.addView(webView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        drawEdgeToEdge(root);
+        setContentView(root);
 
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
@@ -67,7 +75,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Lays the page out under the system bars and pads it by their insets (and the keyboard's). */
+    /** Lays the window out edge to edge and pads the container by the bars, cutout, and keyboard. */
     private void drawEdgeToEdge(View view) {
         if (Build.VERSION.SDK_INT >= 30) {
             getWindow().setDecorFitsSystemWindows(false);
@@ -84,11 +92,22 @@ public class MainActivity extends Activity {
                         | WindowInsets.Type.displayCutout()
                         | WindowInsets.Type.ime());
                 v.setPadding(i.left, i.top, i.right, i.bottom);
+                // Consumed here so the page's env(safe-area-inset-*) doesn't pad a second time.
+                return WindowInsets.CONSUMED;
             } else {
-                v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
-                        insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+                // Android 9-10: system window insets cover the bars and keyboard; the cutout's
+                // safe area is reported separately, so take whichever is larger on each side.
+                DisplayCutout cutout = insets.getDisplayCutout();
+                int cl = cutout != null ? cutout.getSafeInsetLeft() : 0;
+                int ct = cutout != null ? cutout.getSafeInsetTop() : 0;
+                int cr = cutout != null ? cutout.getSafeInsetRight() : 0;
+                int cb = cutout != null ? cutout.getSafeInsetBottom() : 0;
+                v.setPadding(Math.max(insets.getSystemWindowInsetLeft(), cl),
+                        Math.max(insets.getSystemWindowInsetTop(), ct),
+                        Math.max(insets.getSystemWindowInsetRight(), cr),
+                        Math.max(insets.getSystemWindowInsetBottom(), cb));
+                return insets.consumeSystemWindowInsets().consumeDisplayCutout();
             }
-            return insets;
         });
     }
 
