@@ -368,6 +368,19 @@
       .sheet-list .val .down { color: #d9534f; font-weight: 700; }
       @media (prefers-color-scheme: light) { .sheet-list .val .down { color: #b02a24; } }
       .sheet-foot { margin: 0.9rem 0 0; font-size: 0.75rem; color: var(--dim); }
+      .sheet-proj { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; align-items: baseline; }
+      .sheet-proj .score { font-size: 1.05rem; font-weight: 700; }
+      .sheet-proj .score .dim { color: var(--dim); font-weight: 600; }
+      .sheet-proj .tot { color: var(--dim); font-size: 0.875rem; }
+      .card-why-pred { margin: 0.55rem 0 0; font-size: 0.8125rem; font-weight: 600; color: var(--accent); }
+      .card[data-pred] { cursor: pointer; }
+      .card[data-pred]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .bar-track.div { position: relative; overflow: visible; background: transparent; }
+      .bar-track.div::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 10px; border-radius: 5px; background: var(--surface-alt); }
+      .bar-track.div::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--dim); opacity: 0.6; }
+      .bar-track.div .bar-fill { position: absolute; top: 0; height: 10px; }
+      .bar-fill.against { background: #d9534f; }
+      @media (prefers-color-scheme: light) { .bar-fill.against { background: #b02a24; } }
       footer { margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: 1rem; font-size: 0.75rem; color: var(--dim); }
       footer p { margin: 0; }
     </style>
@@ -511,7 +524,7 @@
           These are Jeff Sagarin's own published predictions for the upcoming games, taken
           from the predictions section at the bottom of his file, with his totals and
           moneylines as printed. The margin shown is his overall Rating line for the
-          favorite.
+          favorite. Tap any game card to see how the five systems line up behind the pick.
         </p>
         <div style="margin-top:0.75rem; max-width:24rem">
           <label class="field-label" for="pred-search">Find a game</label>
@@ -544,6 +557,22 @@
       <div class="sheet-bars data" id="sheet-bars" aria-label="The five systems for this team"></div>
       <ul class="sheet-list" id="sheet-list"></ul>
       <p class="sheet-foot">Justified from Sagarin's published numbers: records, schedule strength, and system spread.</p>
+    </div>
+
+    <!-- Prediction detail sheet: how the five systems line up behind one published pick -->
+    <div class="sheet-backdrop" id="pred-sheet-backdrop" hidden></div>
+    <div class="sheet" id="pred-sheet" role="dialog" aria-modal="true" aria-labelledby="pred-sheet-title" hidden>
+      <div class="sheet-head">
+        <div>
+          <p class="sheet-title" id="pred-sheet-title"></p>
+          <p class="sheet-sub" id="pred-sheet-sub"></p>
+        </div>
+        <button type="button" class="sheet-close" id="pred-sheet-close" aria-label="Close prediction details">&times;</button>
+      </div>
+      <div class="sheet-proj data" id="pred-sheet-proj"></div>
+      <div class="sheet-bars data" id="pred-sheet-bars" aria-label="The five systems' margins for this game"></div>
+      <ul class="sheet-list" id="pred-sheet-list"></ul>
+      <p class="sheet-foot">Explained from Sagarin's published ratings and lines. The projection is his, not a betting recommendation.</p>
     </div>
 
     <script>
@@ -870,6 +899,150 @@
         });
       });
 
+      /* Prediction detail sheet: how the five systems line up behind one published pick */
+      var predSheetEl = document.getElementById("pred-sheet");
+      var predBackdropEl = document.getElementById("pred-sheet-backdrop");
+      var teamByName = {};
+      teams.forEach(function (t) { teamByName[t.name] = t; });
+      var MARGIN_KEYS = [
+        { key: "ratingMargin", label: "Rating" },
+        { key: "predictorMargin", label: "Predictor" },
+        { key: "goldenMargin", label: "Golden Mean" },
+        { key: "recentMargin", label: "Recent" },
+        { key: "strongMargin", label: "Strong Recent" }
+      ];
+
+      function openPredSheet(idx) {
+        var p = DATA.predictions[idx];
+        if (!p) return;
+        lastFocus = document.activeElement;
+        var favHome = p.homeTeam === p.favorite;
+        var dogHome = p.homeTeam === p.underdog;
+
+        document.getElementById("pred-sheet-title").innerHTML =
+          esc(p.favorite) + ' <span class="big data">by ' + fmt2(p.ratingMargin) + '</span>';
+        document.getElementById("pred-sheet-sub").textContent =
+          "over " + p.underdog + " · " + (p.homeTeam ? "At " + p.homeTeam : "Neutral site") +
+          " · Why this pick";
+
+        /* Projected score, home team first as printed, plus the total */
+        var projHtml = "";
+        if (p.homeTeam) {
+          var visitor = favHome ? p.underdog : p.favorite;
+          projHtml = '<span class="score">' + esc(p.homeTeam) + ' ' + fmt2(p.homeScore) +
+            ' <span class="dim">·</span> ' + esc(visitor) + ' ' + fmt2(p.awayScore) + '</span>';
+        }
+        projHtml += '<span class="tot">Projected total <b>' + fmt2(p.total) + '</b></span>';
+        document.getElementById("pred-sheet-proj").innerHTML = projHtml;
+
+        /* Diverging bar strip: five margins from the favorite's side of zero */
+        var marg = MARGIN_KEYS.map(function (m) { return p[m.key]; });
+        var maxAbs = Math.max.apply(null, marg.map(function (v) { return Math.abs(v); }).concat([1]));
+        document.getElementById("pred-sheet-bars").innerHTML = MARGIN_KEYS.map(function (m, i) {
+          var v = marg[i];
+          var half = Math.max(2, Math.abs(v) / maxAbs * 50);
+          var fill = v >= 0
+            ? 'left:50%;width:' + half.toFixed(1) + '%'
+            : 'left:' + (50 - half).toFixed(1) + '%;width:' + half.toFixed(1) + '%';
+          return '<div class="bar-row"><span class="bl">' + m.label + '</span>' +
+            '<span class="bar-track div"><span class="bar-fill' + (m.key === "ratingMargin" ? " main" : "") +
+            (v < 0 ? " against" : "") + '" style="' + fill + '"></span></span>' +
+            '<span class="bv">' + signed(v) + '</span></div>';
+        }).join("");
+
+        var rows = [];
+
+        /* 1. Consensus: do all five systems take the favorite? */
+        var agree = marg.filter(function (v) { return v > 0; }).length;
+        if (agree === 5) {
+          rows.push(sheetRow("Agree",
+            '<span class="up">Unanimous</span> · all five systems take <b>' + esc(p.favorite) + '</b>'));
+        } else {
+          var dissent = MARGIN_KEYS.filter(function (m, i) { return marg[i] <= 0; });
+          rows.push(sheetRow("Agree",
+            "<b>" + agree + " of 5</b> take " + esc(p.favorite) + " · " +
+            dissent.map(function (m) {
+              return m.label + " takes " + esc(p.underdog) + " by <b>" + fmt2(Math.abs(p[m.key])) + "</b>";
+            }).join(" · ")));
+        }
+
+        /* 2. The math behind the headline Rating margin */
+        var ft = teamByName[p.favorite], dt = teamByName[p.underdog];
+        if (ft && dt) {
+          var raw = ft.rating - dt.rating + (favHome ? ha.rating : dogHome ? -ha.rating : 0);
+          var math = "<b>#" + ft.rank + " " + esc(p.favorite) + "</b> " + fmt2(ft.rating) +
+            " vs <b>#" + dt.rank + " " + esc(p.underdog) + "</b> " + fmt2(dt.rating);
+          if (favHome) math += " · home edge <b>+" + fmt2(ha.rating) + "</b> to " + esc(p.favorite);
+          else if (dogHome) math += " · home edge <b>" + fmt2(ha.rating) + "</b> sits with " + esc(p.underdog);
+          math += " · lands at <b>" + fmt2(raw) + "</b>, his published line <b>" + fmt2(p.ratingMargin) + "</b>";
+          rows.push(sheetRow("Math", math));
+
+          /* 3. Records and conferences */
+          rows.push(sheetRow("Teams",
+            esc(p.favorite) + " <b>" + ft.wins + "-" + ft.losses + "</b> · " + esc(ft.conference) +
+            " · " + esc(p.underdog) + " <b>" + dt.wins + "-" + dt.losses + "</b> · " + esc(dt.conference)));
+        }
+
+        /* 4. How far apart the five systems sit */
+        var lo = Math.min.apply(null, marg), hiM = Math.max.apply(null, marg);
+        var span = hiM - lo;
+        var spreadWord = span <= 3 ? "<b>Tight agreement</b>" : span <= 7 ? "<b>Moderate spread</b>" : '<span class="down">Wide split</span>';
+        rows.push(sheetRow("Spread",
+          spreadWord + " · systems run from <b>" + signed(lo) + "</b> to <b>" + signed(hiM) +
+          "</b> (" + fmt2(span) + " pts apart)"));
+
+        /* 5. Neutral-site view: what the home edge is doing to this line */
+        if (favHome || dogHome) {
+          var neutral = p.ratingMargin - (favHome ? ha.rating : -ha.rating);
+          var neutralTxt = Math.abs(neutral) < 0.005
+            ? "a pick'em on a neutral field"
+            : neutral > 0
+              ? esc(p.favorite) + " by <b>" + fmt2(neutral) + "</b> on a neutral field"
+              : esc(p.underdog) + " by <b>" + fmt2(Math.abs(neutral)) + "</b> on a neutral field";
+          rows.push(sheetRow("Neutral", "Rating line without the home edge: " + neutralTxt));
+        }
+
+        /* 6. His win chance and price */
+        rows.push(sheetRow("Odds",
+          "His model gives <b>" + esc(p.favorite) + "</b> a <b>" + p.winPct + "%</b> win chance" +
+          " · moneyline <b>" + (p.moneyline > 0 ? "+" + p.moneyline : String(p.moneyline)) + "</b>"));
+
+        document.getElementById("pred-sheet-list").innerHTML = rows.join("");
+        predSheetEl.hidden = false;
+        predBackdropEl.hidden = false;
+        document.getElementById("pred-sheet-close").focus();
+      }
+
+      function closePredSheet() {
+        predSheetEl.hidden = true;
+        predBackdropEl.hidden = true;
+        if (lastFocus && lastFocus.focus) lastFocus.focus();
+      }
+      document.getElementById("pred-sheet-close").addEventListener("click", closePredSheet);
+      predBackdropEl.addEventListener("click", closePredSheet);
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && !predSheetEl.hidden) closePredSheet();
+      });
+
+      function predTarget(e) {
+        var el = e.target;
+        while (el && el !== document.body) {
+          if (el.getAttribute && el.getAttribute("data-pred")) return el;
+          el = el.parentNode;
+        }
+        return null;
+      }
+      var predHost = document.getElementById("pred-cards");
+      predHost.addEventListener("click", function (e) {
+        var el = predTarget(e);
+        if (el) openPredSheet(Number(el.getAttribute("data-pred")));
+      });
+      predHost.addEventListener("keydown", function (e) {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        var el = predTarget(e);
+        if (el) { e.preventDefault(); openPredSheet(Number(el.getAttribute("data-pred"))); }
+      });
+
       /* Predictor */
       var selA = document.getElementById("team-a");
       var selB = document.getElementById("team-b");
@@ -955,12 +1128,12 @@
 
       /* Predictions */
       var predSearch = document.getElementById("pred-search");
-      function predCard(p) {
+      function predCard(p, idx) {
         var other = p.homeTeam === p.favorite ? p.underdog : p.favorite;
         var scoreLine = p.homeTeam
           ? 'Projected score: ' + esc(p.homeTeam) + ' ' + fmt2(p.homeScore) + ', ' + esc(other) + ' ' + fmt2(p.awayScore) + ' · '
           : '';
-        return '<article class="card">' +
+        return '<article class="card" data-pred="' + idx + '" role="button" tabindex="0" aria-label="Why ' + esc(p.favorite) + ' is picked over ' + esc(p.underdog) + '">' +
           '<p class="pred-card-title">' + esc(p.favorite) + ' <span class="by">by ' + fmt2(p.ratingMargin) + '</span> over ' + esc(p.underdog) + '</p>' +
           '<p class="pred-card-line data">' + (p.homeTeam ? 'At ' + esc(p.homeTeam) : 'Neutral site') +
           ' · Total ' + fmt2(p.total) + ' · Moneyline ' + (p.moneyline > 0 ? '+' + p.moneyline : String(p.moneyline)) +
@@ -968,18 +1141,20 @@
           '<p class="pred-card-line data">' + scoreLine +
           'Predictor ' + fmt2(p.predictorMargin) + ' · Golden Mean ' + fmt2(p.goldenMargin) +
           ' · Recent ' + fmt2(p.recentMargin) + ' · Strong Recent ' + fmt2(p.strongMargin) + '</p>' +
+          '<p class="card-why-pred">Why this pick &rsaquo;</p>' +
           '</article>';
       }
       function renderPredictions() {
         var q = predSearch.value.trim().toLowerCase();
-        var shown = q
-          ? DATA.predictions.filter(function (p) {
-              return p.favorite.toLowerCase().indexOf(q) >= 0 || p.underdog.toLowerCase().indexOf(q) >= 0;
-            })
-          : DATA.predictions;
+        var shown = [];
+        DATA.predictions.forEach(function (p, i) {
+          if (!q || p.favorite.toLowerCase().indexOf(q) >= 0 || p.underdog.toLowerCase().indexOf(q) >= 0) {
+            shown.push({ p: p, i: i });
+          }
+        });
         document.getElementById("pred-status").textContent = shown.length + " published predictions";
         document.getElementById("pred-cards").innerHTML =
-          shown.length ? shown.map(predCard).join("")
+          shown.length ? shown.map(function (x) { return predCard(x.p, x.i); }).join("")
             : '<p class="empty">' + (DATA.predictions.length === 0
                 ? "This edition has no published predictions section to show."
                 : "No published game matches that search.") + '</p>';
