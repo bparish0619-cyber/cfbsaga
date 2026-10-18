@@ -1,0 +1,125 @@
+# Builds the Android app (a WebView wrapper around index.html) and, on main, publishes a
+# GitHub Release with update notes and the installable APK.
+#
+# Optional signing secrets (keep one key forever so updates install over older versions):
+#   ANDROID_KEYSTORE_BASE64  base64 of the .jks keystore
+#   ANDROID_STORE_PASSWORD   keystore password
+#   ANDROID_KEY_ALIAS        key alias
+#   ANDROID_KEY_PASSWORD     key password
+# Without them the APK is signed with the runner's throwaway debug key.
+name: Android release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - android/**
+      - .github/workflows/android-release.yml
+  pull_request:
+    paths:
+      - index.html
+      - android/**
+      - .github/workflows/android-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 1.0.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # full history and tags for the release notes
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Decode signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+            echo "SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "SIGNED_WITH=release" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret; signing with a debug key."
+            echo "SIGNED_WITH=debug" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build APK
+        working-directory: android
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease --no-daemon \
+            -PversionCode="$VERSION_CODE" -PversionName="$VERSION_NAME"
+          APK="$RUNNER_TEMP/cfb-sagarin-$VERSION_NAME.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$APK"
+          echo "APK=$APK" >> "$GITHUB_ENV"
+
+      - name: Write release notes
+        run: |
+          EDITION=$(python3 - <<'PY'
+          import json, re
+          html = open("index.html", encoding="utf-8").read()
+          m = re.search(r'"editionLabel":("(?:[^"\\]|\\.)*")', html)
+          print(json.loads(m.group(1)) if m else "Unknown edition")
+          PY
+          )
+          PREV=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          if [ -n "$PREV" ]; then
+            CHANGES=$(git log --no-merges --pretty='- %s' "$PREV..HEAD")
+          else
+            CHANGES=$(git log --no-merges --pretty='- %s' -n 20)
+          fi
+          {
+            echo "## CFB Sagarin $VERSION_NAME"
+            echo
+            echo "**Ratings edition:** $EDITION"
+            echo
+            echo "### What's new"
+            echo "${CHANGES:-- Rebuilt with no new commits}"
+            echo
+            echo "### Install"
+            echo "1. On your Android phone (Android 9 or newer), download \`$(basename "$APK")\` below."
+            echo "2. Open it and allow installs from your browser or Files app when asked."
+            echo "3. To update, install the newer APK over the old one."
+            if [ "$SIGNED_WITH" = "debug" ]; then
+              echo
+              echo "> This build is signed with a temporary debug key. If Android says the app"
+              echo "> is not installed when updating, uninstall the old version first."
+            fi
+          } > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cfb-sagarin-${{ env.VERSION_NAME }}
+          path: ${{ env.APK }}
+
+      - name: Publish GitHub release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v$VERSION_NAME" "$APK" \
+            --title "CFB Sagarin $VERSION_NAME" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --target "$GITHUB_SHA"

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the page background (bg variable) in index.html so the system bars blend into the page. -->
+    <color name="page_bg">#F4F3EC</color>
+</resources>
