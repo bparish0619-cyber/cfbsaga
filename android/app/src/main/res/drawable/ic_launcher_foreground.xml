@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rising rating bars under a gold football; scaled to stay inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:scaleX="0.92" android:scaleY="0.92" android:pivotX="54" android:pivotY="54">
+        <path android:fillColor="#EEF2EC" android:pathData="M34.5,68h6.0a1.5,1.5 0 0 1 1.5,1.5v9.0a1.5,1.5 0 0 1 -1.5,1.5h-6.0a1.5,1.5 0 0 1 -1.5,-1.5v-9.0a1.5,1.5 0 0 1 1.5,-1.5zM46.5,61h6.0a1.5,1.5 0 0 1 1.5,1.5v16.0a1.5,1.5 0 0 1 -1.5,1.5h-6.0a1.5,1.5 0 0 1 -1.5,-1.5v-16.0a1.5,1.5 0 0 1 1.5,-1.5zM58.5,54h6.0a1.5,1.5 0 0 1 1.5,1.5v23.0a1.5,1.5 0 0 1 -1.5,1.5h-6.0a1.5,1.5 0 0 1 -1.5,-1.5v-23.0a1.5,1.5 0 0 1 1.5,-1.5zM70.5,45h6.0a1.5,1.5 0 0 1 1.5,1.5v32.0a1.5,1.5 0 0 1 -1.5,1.5h-6.0a1.5,1.5 0 0 1 -1.5,-1.5v-32.0a1.5,1.5 0 0 1 1.5,-1.5z" />
+        <group android:rotation="-30" android:pivotX="50" android:pivotY="44">
+            <path android:fillColor="#E8B33C" android:strokeColor="#123524" android:strokeWidth="2.5" android:pathData="M28,44C36,30 64,30 72,44C64,58 36,58 28,44Z" />
+            <path android:strokeColor="#123524" android:strokeWidth="2" android:strokeLineCap="round" android:pathData="M40,44H60M44,40.5V47.5M48,40.5V47.5M52,40.5V47.5M56,40.5V47.5" />
+            <path android:strokeColor="#123524" android:strokeWidth="1.6" android:pathData="M33.5,38.5C34.5,42 34.5,46 33.5,49.5M66.5,38.5C65.5,42 65.5,46 66.5,49.5" />
+        </group>
+    </group>
+</vector>
