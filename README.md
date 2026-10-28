@@ -6,6 +6,8 @@ A phone-friendly board for Jeff Sagarin's weekly college football ratings, publi
 
 Sagarin posts his ratings as one long plain-text file ([sagarin.com/sports/cfsend.htm](http://sagarin.com/sports/cfsend.htm)). This repo turns each weekly edition into a searchable, sortable page that works on a phone.
 
+**Live:** [cfbsaga.northbrand.net](https://cfbsaga.northbrand.net), hosted on Cloudflare Pages (project `cfbsaga`). This repo is the archive of record; the Sunday refresh lands here first, then uploads to Cloudflare.
+
 ## What the board shows
 
 | Tab | Contents |
@@ -48,7 +50,7 @@ The page has no build step, framework, or network requests. It is organized top 
 
 Replace the `DATA` object in `index.html` with the new edition's numbers and commit. That one change:
 
-- updates the website (deployed to Netlify from this repo, refreshed every Sunday at noon Central during the season), and
+- updates the website (refreshed every Sunday at 12:00 Central during the season: the new edition is pushed to this repo, then direct-uploaded to Cloudflare Pages), and
 - on `main`, triggers a new Android release carrying the same edition.
 
 ## Android app
