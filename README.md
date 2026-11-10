@@ -53,6 +53,10 @@ Replace the `DATA` object in `index.html` with the new edition's numbers and com
 - updates the website (refreshed every Sunday at 12:00 Central during the season: the new edition is pushed to this repo, then direct-uploaded to Cloudflare Pages), and
 - on `main`, triggers a new Android release carrying the same edition.
 
+## Local masters
+
+The working masters live in `~/workspace/sagarin-site/`: `index.html` (the page), `refresh.py` (the Sunday refresh; it splices the new edition's DATA blob into the page, so the shell, styles, and footer persist across editions), and `DESIGN.md` (the page's design notes: Field Green is the local data accent). The shared design DNA lives in the northbrand-hub repo.
+
 ## Android app
 
 The app is a thin native wrapper: a single full-screen `WebView` showing the copy of `index.html` bundled in the APK. It needs no internet permission and works offline. It follows the phone's light or dark mode, draws edge to edge under the system bars, closes an open detail sheet on Back, and opens the Sagarin source link in the browser.
